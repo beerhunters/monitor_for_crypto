@@ -7,15 +7,18 @@ from urllib3 import Retry
 Update = namedtuple("Update", ["price", "price_change", "price_change_percent", "ts"])
 
 
-class ETHUSDTMonitor:
-    API_ENDPOINT = "https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=ETHUSDT"
+class Monitoring:
+    BASE_API_ENDPOINT = "https://fapi.binance.com/fapi/v1/ticker/24hr?symbol={symbol}"
 
     def __init__(
         self,
         session: requests.Session,
+        symbol: str,
         percent_threshold: float = 1.0,
         time_interval: int = 3600,
     ):
+        self.symbol = symbol.upper()
+        self.api_endpoint = self.BASE_API_ENDPOINT.format(symbol=self.symbol)
         self.percent_threshold = percent_threshold
         self.time_interval = time_interval
         self.initial = None
@@ -36,7 +39,7 @@ class ETHUSDTMonitor:
     def get_prices(self):
         while True:
             try:
-                response = self.session.get(self.API_ENDPOINT).json()
+                response = self.session.get(self.api_endpoint).json()
                 yield Update(
                     price=float(response["lastPrice"]),
                     price_change=float(response["priceChange"]),
@@ -76,8 +79,26 @@ def create_retry_session(retries: int, backoff_factor: float = 0.3) -> requests.
 
 
 def main():
+    print("Available symbols: BTCUSDT, ETHUSDT, BNBUSDT, etc.")
+    symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"]  # Replace with desired default symbols
+    symbol = "ETHUSDT"  # Default for environments without interactive input
+
+    # Try to get user input; fallback to default symbol in case of an error
+    try:
+        user_input = (
+            input("Enter the symbol to monitor (e.g., ETHUSDT): ").strip().upper()
+        )
+        if user_input in symbols:
+            symbol = user_input
+        else:
+            print(f"Invalid symbol. Defaulting to {symbol}.")
+    except OSError:
+        print(f"Input not supported. Defaulting to {symbol}.")
+
     session = create_retry_session(retries=5)
-    monitor = ETHUSDTMonitor(session=session, percent_threshold=0.01, time_interval=5)
+    monitor = Monitoring(
+        session=session, symbol=symbol, percent_threshold=0.01, time_interval=5
+    )
     monitor.monitor()
 
 
